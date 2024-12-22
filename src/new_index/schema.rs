@@ -1,7 +1,11 @@
 use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 #[cfg(not(feature = "liquid"))]
 use bitcoin::merkle_tree::MerkleBlock;
+#[cfg(not(feature = "liquid"))]
 use bitcoin::VarInt;
+#[cfg(feature = "liquid")]
+use elements::encode::VarInt;
+
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use hex::FromHex;
@@ -22,7 +26,8 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use crate::chain::{
-    BlockHash, BlockHeader, Network, OutPoint, Script, Transaction, TxOut, Txid, Value,
+    BlockHash, BlockHeader, Network, OutPoint, Script, Transaction, TxOperations, TxOut, Txid,
+    Value,
 };
 use crate::config::Config;
 use crate::daemon::Daemon;
@@ -830,7 +835,7 @@ impl ChainQuery {
         let _timer = self.start_timer("lookup_txn");
         self.lookup_raw_txn(txid, blockhash).map(|rawtx| {
             let txn: Transaction = deserialize(&rawtx).expect("failed to parse Transaction");
-            assert_eq!(*txid, txn.txid());
+            assert_eq!(*txid, TxOperations::txid(&txn));
             txn
         })
     }
@@ -977,7 +982,7 @@ fn add_blocks(block_entries: &[BlockEntry], iconfig: &IndexerConfig) -> Vec<DBRo
         .map(|b| {
             let mut rows = vec![];
             let blockhash = full_hash(&b.entry.hash()[..]);
-            let txids: Vec<Txid> = b.block.txdata.iter().map(|tx| tx.txid()).collect();
+            let txids: Vec<Txid> = b.block.txdata.iter().map(|tx| TxOperations::txid(tx)).collect();
             for (tx, txid) in b.block.txdata.iter().zip(txids.iter()) {
                 add_transaction(*txid, tx, blockhash, &mut rows, iconfig);
             }
@@ -1083,7 +1088,8 @@ fn index_transaction(
     //      H{funding-scripthash}{spending-height}S{spending-txid:vin}{funding-txid:vout} → ""
     // persist "edges" for fast is-this-TXO-spent check
     //      S{funding-txid:vout}{spending-txid:vin} → ""
-    let txid = full_hash(&tx.txid()[..]);
+
+    let txid = full_hash(&TxOperations::txid(tx)[..]);
     for (txo_index, txo) in tx.output.iter().enumerate() {
         if is_spendable(txo) || iconfig.index_unspendables {
             let history = TxHistoryRow::new(

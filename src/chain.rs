@@ -29,6 +29,8 @@ pub enum Network {
     #[cfg(not(feature = "liquid"))]
     Testnet,
     #[cfg(not(feature = "liquid"))]
+    Testnet4,
+    #[cfg(not(feature = "liquid"))]
     Regtest,
     #[cfg(not(feature = "liquid"))]
     Signet,
@@ -97,6 +99,7 @@ impl Network {
         return vec![
             "mainnet".to_string(),
             "testnet".to_string(),
+            "testnet4".to_string(),
             "regtest".to_string(),
             "signet".to_string(),
         ];
@@ -107,6 +110,27 @@ impl Network {
             "liquidtestnet".to_string(),
             "liquidregtest".to_string(),
         ];
+    }
+}
+
+/// Because `rust-bitcoin` uses the `txid` function will cause a warning,
+/// Need to use `compute_txid` instead,
+/// So abstract a trait to handle the access of `txid`   
+pub trait TxOperations {
+    fn txid(&self) -> Txid;
+}
+
+#[cfg(not(feature = "liquid"))]
+impl TxOperations for Transaction {
+    fn txid(&self) -> Txid {
+        self.compute_txid()
+    }
+}
+
+#[cfg(feature = "liquid")]
+impl TxOperations for Transaction {
+    fn txid(&self) -> Txid {
+        Transaction::txid(self)
     }
 }
 
@@ -121,8 +145,12 @@ pub fn bitcoin_genesis_hash(network: BNetwork) -> bitcoin::BlockHash {
     lazy_static! {
         static ref BITCOIN_GENESIS: bitcoin::BlockHash =
             genesis_block(BNetwork::Bitcoin).block_hash();
+            // TESTNET_GENESIS is BlockHash of testnet3
         static ref TESTNET_GENESIS: bitcoin::BlockHash =
             genesis_block(BNetwork::Testnet).block_hash();
+            // TESTNET4_GENESIS is BlockHash of testnet4
+        static ref TESTNET4_GENESIS: bitcoin::BlockHash =
+            genesis_block(BNetwork::Testnet4).block_hash();
         static ref REGTEST_GENESIS: bitcoin::BlockHash =
             genesis_block(BNetwork::Regtest).block_hash();
         static ref SIGNET_GENESIS: bitcoin::BlockHash =
@@ -131,6 +159,7 @@ pub fn bitcoin_genesis_hash(network: BNetwork) -> bitcoin::BlockHash {
     match network {
         BNetwork::Bitcoin => *BITCOIN_GENESIS,
         BNetwork::Testnet => *TESTNET_GENESIS,
+        BNetwork::Testnet4 => *TESTNET4_GENESIS,
         BNetwork::Regtest => *REGTEST_GENESIS,
         BNetwork::Signet => *SIGNET_GENESIS,
         _ => panic!("unknown network {:?}", network),
@@ -165,6 +194,8 @@ impl From<&str> for Network {
             #[cfg(not(feature = "liquid"))]
             "testnet" => Network::Testnet,
             #[cfg(not(feature = "liquid"))]
+            "testnet4" => Network::Testnet4,
+            #[cfg(not(feature = "liquid"))]
             "regtest" => Network::Regtest,
             #[cfg(not(feature = "liquid"))]
             "signet" => Network::Signet,
@@ -187,6 +218,7 @@ impl From<Network> for BNetwork {
         match network {
             Network::Bitcoin => BNetwork::Bitcoin,
             Network::Testnet => BNetwork::Testnet,
+            Network::Testnet4 => BNetwork::Testnet4,
             Network::Regtest => BNetwork::Regtest,
             Network::Signet => BNetwork::Signet,
         }
@@ -199,9 +231,23 @@ impl From<BNetwork> for Network {
         match network {
             BNetwork::Bitcoin => Network::Bitcoin,
             BNetwork::Testnet => Network::Testnet,
+            BNetwork::Testnet4 => Network::Testnet4,
             BNetwork::Regtest => Network::Regtest,
             BNetwork::Signet => Network::Signet,
             _ => panic!("unknown network {:?}", network),
+        }
+    }
+}
+
+#[cfg(not(feature = "liquid"))]
+impl From<Network> for &'static bitcoin::params::Params {
+    fn from(network: Network) -> Self {
+        match network {
+            Network::Bitcoin => &bitcoin::params::MAINNET,
+            Network::Testnet => &bitcoin::params::TESTNET3,
+            Network::Testnet4 => &bitcoin::params::TESTNET4,
+            Network::Regtest => &bitcoin::params::REGTEST,
+            Network::Signet => &bitcoin::params::SIGNET,
         }
     }
 }

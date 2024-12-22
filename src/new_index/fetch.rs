@@ -9,7 +9,6 @@ use elements::encode::{deserialize, Decodable};
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::thread;
@@ -201,7 +200,7 @@ fn blkfiles_parser(blobs: Fetcher<Vec<u8>>, magic: u32) -> Fetcher<Vec<SizedBloc
 }
 
 fn parse_blocks(blob: Vec<u8>, magic: u32) -> Result<Vec<SizedBlock>> {
-    let mut cursor = Cursor::new(&blob);
+    let mut cursor = cursor::Cursor::new(&blob);
     let mut slices = vec![];
     let max_pos = blob.len() as u64;
 
@@ -248,4 +247,104 @@ fn parse_blocks(blob: Vec<u8>, magic: u32) -> Result<Vec<SizedBlock>> {
             .map(|(slice, size)| (deserialize(slice).expect("failed to parse Block"), size))
             .collect()
     }))
+}
+
+mod cursor {
+    use std::convert::TryInto;
+
+    pub struct Cursor<T> {
+        inner: T,
+        pos: u64,
+    }
+
+    impl<T: AsRef<[u8]>> Cursor<T> {
+        /// Creates a `Cursor` by wrapping `inner`.
+        #[inline]
+        pub fn new(inner: T) -> Self {
+            Cursor { inner, pos: 0 }
+        }
+
+        /// Returns the position read up to thus far.
+        #[inline]
+        pub fn position(&self) -> u64 {
+            self.pos
+        }
+
+        /// Sets the position to `pos`.
+        #[inline]
+        pub fn set_position(&mut self, pos: u64) {
+            self.pos = pos;
+        }
+
+        /// Returns the inner buffer.
+        ///
+        /// This is the whole wrapped buffer, including the bytes already read.
+        #[inline]
+        #[allow(dead_code)]
+        pub fn into_inner(self) -> T {
+            self.inner
+        }
+    }
+
+    #[cfg(not(feature = "liquid"))]
+    impl<T: AsRef<[u8]>> bitcoin_io::Read for Cursor<T> {
+        #[inline]
+        fn read(&mut self, buf: &mut [u8]) -> Result<usize, bitcoin_io::Error> {
+            let inner: &[u8] = self.inner.as_ref();
+            let start_pos = self.pos.try_into().unwrap_or(inner.len());
+            let read = core::cmp::min(inner.len().saturating_sub(start_pos), buf.len());
+            buf[..read].copy_from_slice(&inner[start_pos..start_pos + read]);
+            self.pos = self.pos.saturating_add(
+                read.try_into()
+                    .unwrap_or(u64::max_value() /* unreachable */),
+            );
+            Ok(read)
+        }
+    }
+
+    #[cfg(not(feature = "liquid"))]
+    impl<T: AsRef<[u8]>> bitcoin_io::BufRead for Cursor<T> {
+        #[inline]
+        fn fill_buf(&mut self) -> Result<&[u8], bitcoin_io::Error> {
+            let inner: &[u8] = self.inner.as_ref();
+            Ok(&inner[self.pos as usize..])
+        }
+
+        #[inline]
+        fn consume(&mut self, amount: usize) {
+            assert!(amount <= self.inner.as_ref().len());
+            self.pos += amount as u64;
+        }
+    }
+
+    #[cfg(feature = "liquid")]
+    impl<T: AsRef<[u8]>> std::io::Read for Cursor<T> {
+        #[inline]
+        fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
+            let inner: &[u8] = self.inner.as_ref();
+            let start_pos = self.pos.try_into().unwrap_or(inner.len());
+            let read = core::cmp::min(inner.len().saturating_sub(start_pos), buf.len());
+            buf[..read].copy_from_slice(&inner[start_pos..start_pos + read]);
+            self.pos = self.pos.saturating_add(
+                read.try_into()
+                    .unwrap_or(u64::max_value() /* unreachable */),
+            );
+            Ok(read)
+        }
+    }
+
+    #[cfg(feature = "liquid")]
+    impl<T: AsRef<[u8]>> std::io::BufRead for Cursor<T> {
+        #[inline]
+        fn fill_buf(&mut self) -> Result<&[u8], std::io::Error> {
+            let inner: &[u8] = self.inner.as_ref();
+            Ok(&inner[self.pos as usize..])
+        }
+
+        #[inline]
+        fn consume(&mut self, amount: usize) {
+            assert!(amount <= self.inner.as_ref().len());
+            self.pos += amount as u64;
+        }
+    }
 }

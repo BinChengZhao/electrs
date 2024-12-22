@@ -1,6 +1,6 @@
 use crate::chain::{
     address, BlockHash, Network, OutPoint, Script, Sequence, Transaction, TxIn, TxMerkleNode,
-    TxOut, Txid,
+    TxOperations, TxOut, Txid,
 };
 use crate::config::Config;
 use crate::errors;
@@ -158,7 +158,7 @@ impl TransactionValue {
         let weight = weight.to_wu();
 
         TransactionValue {
-            txid: tx.txid(),
+            txid: TxOperations::txid(&tx),
             #[cfg(not(feature = "liquid"))]
             version: tx.version.0 as u32,
             #[cfg(feature = "liquid")]
@@ -319,7 +319,7 @@ impl TxOutValue {
             "v0_p2wsh"
         } else if script.is_p2tr() {
             "v1_p2tr"
-        } else if script.is_provably_unspendable() {
+        } else if script.is_op_return() {
             "provably_unspendable"
         } else {
             "unknown"
@@ -1264,12 +1264,7 @@ impl From<hex::HexToArrayError> for HttpError {
         HttpError::from("Invalid hex string".to_string())
     }
 }
-impl From<bitcoin::address::Error> for HttpError {
-    fn from(_e: bitcoin::address::Error) -> Self {
-        //HttpError::from(e.description().to_string())
-        HttpError::from("Invalid Bitcoin address".to_string())
-    }
-}
+
 impl From<errors::Error> for HttpError {
     fn from(e: errors::Error) -> Self {
         warn!("errors::Error: {:?}", e);

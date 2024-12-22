@@ -1,7 +1,7 @@
 use crate::chain::{BlockHash, Txid};
 use crate::errors::*;
 use crate::new_index::ChainQuery;
-use bitcoin::hashes::{sha256d::Hash as Sha256dHash, Hash};
+use bitcoin::hashes::sha256d::Hash as Sha256dHash;
 
 pub fn get_tx_merkle_proof(
     chain: &ChainQuery,
@@ -80,7 +80,7 @@ pub fn get_id_from_pos(
 
 fn merklize(left: Sha256dHash, right: Sha256dHash) -> Sha256dHash {
     let data = [&left[..], &right[..]].concat();
-    Sha256dHash::hash(&data)
+    bitcoin::hashes::Hash::hash(&data)
 }
 
 fn create_merkle_branch_and_root(

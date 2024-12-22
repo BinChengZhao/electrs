@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use std::time::{Duration, Instant};
 
-use crate::chain::{Network, OutPoint, Transaction, TxOut, Txid};
+use crate::chain::{Network, OutPoint, Transaction, TxOperations, TxOut, Txid};
 use crate::config::Config;
 use crate::daemon::Daemon;
 use crate::errors::*;
@@ -133,7 +133,7 @@ impl Query {
     }
 
     pub fn lookup_tx_spends(&self, tx: Transaction) -> Vec<Option<SpendingInput>> {
-        let txid = tx.txid();
+        let txid = TxOperations::txid(&tx);
 
         tx.output
             .par_iter()

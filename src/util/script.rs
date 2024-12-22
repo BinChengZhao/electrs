@@ -27,7 +27,8 @@ pub trait ScriptToAddr {
 #[cfg(not(feature = "liquid"))]
 impl ScriptToAddr for bitcoin::Script {
     fn to_address_str(&self, network: Network) -> Option<String> {
-        bitcoin::Address::from_script(self, network.into())
+        let bnetwork = bitcoin::Network::from(network);
+        bitcoin::Address::from_script(self, bnetwork)
             .map(|s| s.to_string())
             .ok()
     }

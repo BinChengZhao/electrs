@@ -70,9 +70,9 @@ pub fn has_prevout(txin: &TxIn) -> bool {
 
 pub fn is_spendable(txout: &TxOut) -> bool {
     #[cfg(not(feature = "liquid"))]
-    return !txout.script_pubkey.is_provably_unspendable();
+    return !txout.script_pubkey.is_op_return();
     #[cfg(feature = "liquid")]
-    return !txout.is_fee() && !txout.script_pubkey.is_provably_unspendable();
+    return !txout.is_fee() && !txout.script_pubkey.is_op_return();
 }
 
 pub fn extract_tx_prevouts<'a>(
